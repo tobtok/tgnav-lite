@@ -112,7 +112,17 @@ def main() -> None:
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     if OUT.exists():
-        shutil.rmtree(OUT)
+        try:
+            shutil.rmtree(OUT)
+        except OSError:
+            # fallback: some sandboxed Python builds hijack rmtree;
+            # remove files one by one instead
+            for root, dirs, files in os.walk(OUT, topdown=False):
+                for f in files:
+                    os.unlink(os.path.join(root, f))
+                for d in dirs:
+                    os.rmdir(os.path.join(root, d))
+            OUT.rmdir()
     OUT.mkdir(parents=True)
 
     env = Environment(

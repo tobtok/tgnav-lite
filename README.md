@@ -7,7 +7,9 @@ homepage, category pages, detail pages with structured data, `sitemap.xml` and `
 No database, no server-side code — the output is pure HTML you can host anywhere
 (GitHub Pages, Cloudflare Pages, any static host).
 
-> **Live demo** — a directory built with this generator: *coming soon*
+> **Live demo** — a directory built with this generator:
+> **[https://tobtok.github.io/tgnav-lite/](https://tobtok.github.io/tgnav-lite/)**
+> (auto-rebuilt on every push via GitHub Actions — see `.github/workflows/deploy-pages.yml`)
 
 ## Why static?
 
@@ -31,6 +33,9 @@ The site is generated into `dist/`. Open `dist/index.html` in a browser, or serv
 ```bash
 python -m http.server -d dist 8080
 ```
+
+This repository deploys its own demo to GitHub Pages on every push to `main`
+(workflow included — just enable *Settings → Pages → Source: GitHub Actions*).
 
 ## Data format
 
