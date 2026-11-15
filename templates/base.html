@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {% block head %}
+  <title>{% block title %}{{ SITE_NAME }}{% endblock %}</title>
+  <meta name="description" content="{% block description %}A curated directory of Telegram groups and channels.{% endblock %}">
+  <link rel="canonical" href="{% block canonical %}{{ SITE_URL }}/{% endblock %}">
+  {% endblock %}
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="{{ SITE_URL }}/">{{ SITE_NAME }}</a>
+    <nav class="cat-nav">
+      {% for c, cs in cat_slugs.items() %}
+      <a href="{{ SITE_URL }}/category/{{ cs }}.html">{{ c }}</a>
+      {% endfor %}
+    </nav>
+  </header>
+  <main class="wrap">
+    {% block body %}{% endblock %}
+  </main>
+  <footer class="site-footer">
+    <p>{{ SITE_NAME }} is an independent index of public Telegram resources.
+       We host no content — every link points to a public Telegram page.</p>
+    <p>Updated {{ NOW }} · Built with <a href="https://github.com/">tgnav-lite</a></p>
+  </footer>
+</body>
+</html>

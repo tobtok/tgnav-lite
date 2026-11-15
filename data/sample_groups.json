@@ -1,0 +1,23 @@
+[
+  {"name": "Example Tech Lounge", "username": "example_tech_lounge", "type": "channel", "category": "Tech", "description": "Daily digest of programming news, tools and open-source releases. Calm, no flame wars.", "members": 12300, "tags": ["tech", "news", "programming"], "added": "2026-11-14"},
+  {"name": "Example Python Kitchen", "username": "example_python_kitchen", "type": "group", "category": "Tech", "description": "Beginner-friendly Python help desk. Paste code, get answers, stay kind.", "members": 4200, "tags": ["python", "help"], "added": "2026-11-13"},
+  {"name": "Example Frontend Weekly", "username": "example_frontend_weekly", "type": "channel", "category": "Tech", "description": "One curated frontend article per day. CSS, JS and browser news in plain language.", "members": 8100, "tags": ["frontend", "css", "javascript"], "added": "2026-11-12"},
+
+  {"name": "Example Movie Club", "username": "example_movie_club", "type": "group", "category": "Movies & TV", "description": "Evening chat about what everyone watched this week. Spoiler threads are labeled.", "members": 6700, "tags": ["movies", "discussion"], "added": "2026-11-14"},
+  {"name": "Example Series Radar", "username": "example_series_radar", "type": "channel", "category": "Movies & TV", "description": "New-season announcements and honest one-paragraph reviews. No spoilers in the feed.", "members": 9400, "tags": ["tv", "reviews"], "added": "2026-11-11"},
+
+  {"name": "Example Market Notes", "username": "example_market_notes", "type": "channel", "category": "Finance", "description": "Short daily summaries of major market moves with sources. Education only, not advice.", "members": 15200, "tags": ["finance", "daily"], "added": "2026-11-15"},
+  {"name": "Example Crypto Basics", "username": "example_crypto_basics", "type": "group", "category": "Finance", "description": "Questions about crypto basics answered patiently. Scam links are banned on sight.", "members": 5300, "tags": ["crypto", "beginners"], "added": "2026-11-10"},
+
+  {"name": "Example Co-op Gamers", "username": "example_coop_gamers", "type": "group", "category": "Games", "description": "Find co-op partners for popular multiplayer titles. Voice chat friendly, EU/US time zones.", "members": 7800, "tags": ["gaming", "coop"], "added": "2026-11-13"},
+  {"name": "Example Indie Game Digest", "username": "example_indie_digest", "type": "channel", "category": "Games", "description": "Three indie releases worth knowing about, every Friday.", "members": 3900, "tags": ["indie", "gaming"], "added": "2026-11-09"},
+
+  {"name": "Example Study Hall", "username": "example_study_hall", "type": "group", "category": "Learning", "description": "Silent study rooms and weekly accountability check-ins. Cameras optional, consistency celebrated.", "members": 2600, "tags": ["study", "habits"], "added": "2026-11-12"},
+  {"name": "Example Language Corner", "username": "example_language_corner", "type": "group", "category": "Learning", "description": "Practice English and Mandarin with patient partners. Correction culture, not mockery.", "members": 4700, "tags": ["language", "practice"], "added": "2026-11-08"},
+
+  {"name": "Example Lo-Fi Radio", "username": "example_lofi_radio", "type": "channel", "category": "Music", "description": "A calm lo-fi track every morning. Perfect background for work sessions.", "members": 11200, "tags": ["lofi", "focus"], "added": "2026-11-15"},
+  {"name": "Example Vinyl Talk", "username": "example_vinyl_talk", "type": "group", "category": "Music", "description": "Collectors discussing pressings, turntables and where to hunt for rare records.", "members": 1800, "tags": ["vinyl", "collecting"], "added": "2026-11-07"},
+
+  {"name": "Example Travel Desk", "username": "example_travel_desk", "type": "group", "category": "Travel", "description": "Route advice, visa questions and honest hotel reviews from people who just came back.", "members": 6100, "tags": ["travel", "tips"], "added": "2026-11-06"},
+  {"name": "Example Photo Walks", "username": "example_photo_walks", "type": "group", "category": "Travel", "description": "Organize city photo walks and share the results. All skill levels, all cameras.", "members": 2300, "tags": ["photography", "meetups"], "added": "2026-11-05"}
+]

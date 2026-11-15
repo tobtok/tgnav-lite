@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ SITE_NAME }} — Curated Telegram Groups &amp; Channels{% endblock %}
+{% block description %}{{ total }} hand-reviewed Telegram groups and channels, organized by category and updated regularly.{% endblock %}
+
+{% block body %}
+<section class="hero">
+  <h1>Find real Telegram groups, not dead links</h1>
+  <p class="sub">{{ total }} entries · {{ cat_meta | length }} categories · every entry reviewed before listing</p>
+</section>
+
+<section class="cat-grid">
+  {% for c in cat_meta %}
+  <a class="cat-card" href="{{ c.url }}">
+    <span class="cat-name">{{ c.name }}</span>
+    <span class="cat-count">{{ c.count }}</span>
+  </a>
+  {% endfor %}
+</section>
+
+<section>
+  <h2>Latest additions</h2>
+  <div class="list">
+    {% for it in items %}
+    <a class="row" href="{{ it.url }}">
+      <div class="fm">
+        <div class="fn">{{ it.name }}</div>
+        <div class="fd">{{ it.description | truncate(90) }}</div>
+      </div>
+      <span class="badge">{{ 'Channel' if it.type == 'channel' else 'Group' }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ item.name }} — Telegram {{ 'Channel' if item.type == 'channel' else 'Group' }} | {{ SITE_NAME }}{% endblock %}
+{% block description %}{{ item.description | default('Telegram ' ~ item.type ~ ' ' ~ item.name, true) | truncate(155) }}{% endblock %}
+{% block canonical %}{{ item.url }}{% endblock %}
+
+{% block head %}
+  {{ super() }}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "name": "{{ item.name }}",
+    "itemListElement": [{
+      "@type": "ListItem",
+      "position": 1,
+      "name": "{{ item.name }}",
+      "url": "{{ item.url }}"
+    }]
+  }
+  </script>
+{% endblock %}
+
+{% block body %}
+<article class="detail">
+  <header>
+    <h1>{{ item.name }}</h1>
+    <p class="sub">
+      <span class="badge">{{ 'Channel' if item.type == 'channel' else 'Group' }}</span>
+      <span class="chip">{{ item.category }}</span>
+      {% if item.members %}<span class="chip">{{ item.members | fmt_members }} members</span>{% endif %}
+      {% if item.added %}<span class="chip">Listed {{ item.added }}</span>{% endif %}
+    </p>
+  </header>
+
+  {% if item.description %}
+  <section class="desc">
+    <h2>About</h2>
+    <p>{{ item.description }}</p>
+  </section>
+  {% endif %}
+
+  {% if item.tags %}
+  <p class="tags">
+    {% for t in item.tags %}<span class="chip">#{{ t }}</span>{% endfor %}
+  </p>
+  {% endif %}
+
+  <p class="cta">
+    <a class="btn" href="https://t.me/{{ item.username }}" rel="nofollow noopener" target="_blank">
+      Open in Telegram
+    </a>
+    <code class="uname">@{{ item.username }}</code>
+  </p>
+
+  {% if related %}
+  <section>
+    <h2>Similar in {{ item.category }}</h2>
+    <div class="list">
+      {% for r in related %}
+      <a class="row" href="{{ r.url }}">
+        <div class="fm">
+          <div class="fn">{{ r.name }}</div>
+          <div class="fd">{{ r.description | truncate(90) }}</div>
+        </div>
+        <span class="badge">{{ 'Channel' if r.type == 'channel' else 'Group' }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+</article>
+{% endblock %}
