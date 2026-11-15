@@ -4,7 +4,7 @@
 
 {% block body %}
 <section class="hero">
-  <h1>Find real Telegram groups, not dead links</h1>
+  <h1><span class="hero-title">Find real Telegram groups,</span> not dead links</h1>
   <p class="sub">{{ total }} entries · {{ cat_meta | length }} categories · every entry reviewed before listing</p>
 </section>
 
@@ -22,6 +22,7 @@
   <div class="list">
     {% for it in items %}
     <a class="row" href="{{ it.url }}">
+      <span class="avatar">{{ it.name[0] }}</span>
       <div class="fm">
         <div class="fn">{{ it.name }}</div>
         <div class="fd">{{ it.description | truncate(90) }}</div>

@@ -10,6 +10,7 @@
 <div class="list">
   {% for it in items %}
   <a class="row" href="{{ it.url }}">
+    <span class="avatar">{{ it.name[0] }}</span>
     <div class="fm">
       <div class="fn">{{ it.name }}</div>
       <div class="fd">{{ it.description | truncate(90) }}</div>

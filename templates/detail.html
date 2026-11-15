@@ -23,6 +23,7 @@
 {% block body %}
 <article class="detail">
   <header>
+    <span class="avatar">{{ item.name[0] }}</span>
     <h1>{{ item.name }}</h1>
     <p class="sub">
       <span class="badge">{{ 'Channel' if item.type == 'channel' else 'Group' }}</span>
@@ -58,6 +59,7 @@
     <div class="list">
       {% for r in related %}
       <a class="row" href="{{ r.url }}">
+        <span class="avatar">{{ r.name[0] }}</span>
         <div class="fm">
           <div class="fn">{{ r.name }}</div>
           <div class="fd">{{ r.description | truncate(90) }}</div>
