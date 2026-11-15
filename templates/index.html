@@ -6,15 +6,19 @@
 <section class="hero">
   <h1><span class="hero-title">Find real Telegram groups,</span> not dead links</h1>
   <p class="sub">{{ total }} entries · {{ cat_meta | length }} categories · every entry reviewed before listing</p>
+  <p class="hero-cta"><a class="btn" href="{{ SITE_URL }}/search.html">🔍 Search the directory</a></p>
 </section>
 
-<section class="cat-grid">
-  {% for c in cat_meta %}
-  <a class="cat-card" href="{{ c.url }}">
-    <span class="cat-name">{{ c.name }}</span>
-    <span class="cat-count">{{ c.count }}</span>
-  </a>
-  {% endfor %}
+<section>
+  <h2>Browse by category</h2>
+  <div class="cat-grid">
+    {% for c in cat_meta %}
+    <a class="cat-card" href="{{ c.url }}">
+      <span class="cat-name">{{ c.name }}</span>
+      <span class="cat-count">{{ c.count }}</span>
+    </a>
+    {% endfor %}
+  </div>
 </section>
 
 <section>

@@ -8,87 +8,213 @@ Usage:
     python generator/build.py
 
 Environment overrides:
-    SITE_NAME   display name of the site        (default: "TG Nav Directory")
-    SITE_URL    absolute base URL, no trailing slash (default: "https://example.com")
-    PER_PAGE    items per category page chunk    (default: 200, effectively no paging)
+    SITE_NAME        display name of the site                (default: "TG Nav Directory")
+    SITE_URL         absolute base URL, no trailing slash    (default: "https://example.com")
+    SITE_BASE        URL path prefix for sub-path hosting    (default: "")
+    PER_PAGE         items per category page                 (default: 200)
+    SITEMAP_MAX_URLS max URLs per sitemap file before split  (default: 45000)
+    SEARCH_CHUNK     entries per search-index chunk          (default: 4000)
+    SITE_OG_IMAGE    absolute OpenGraph image URL            (default: none)
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 import shutil
 import unicodedata
-from datetime import datetime, timezone
+import xml.sax.saxutils as xml_escape
+from dataclasses import dataclass, field
+from datetime import date, datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 BASE = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE / "data"
-TPL_DIR = BASE / "templates"
-STATIC_DIR = BASE / "static"
-OUT = BASE / "dist"
 
-SITE_NAME = os.environ.get("SITE_NAME", "TG Nav Directory")
-SITE_URL = os.environ.get("SITE_URL", "https://example.com").rstrip("/")
-# URL path prefix when the site is hosted under a sub-path
-# (e.g. GitHub Pages project sites: /<repo>). Default "" = domain root.
-SITE_BASE = os.environ.get("SITE_BASE", "").rstrip("/")
-PER_PAGE = int(os.environ.get("PER_PAGE", "200"))
+VALID_TYPES = ("group", "channel")
+USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{4,64}$")
 
-VALID_TYPES = {"group", "channel"}
 
+class BuildError(Exception):
+    """Raised with a clear, user-facing message for any invalid input/config."""
+
+
+@dataclass
+class Config:
+    data_dir: Path
+    tpl_dir: Path
+    static_dir: Path
+    out_dir: Path
+    site_name: str
+    site_url: str          # absolute, no trailing slash; may include the sub-path
+    site_base: str         # URL path prefix, "" for domain-root hosting
+    per_page: int
+    sitemap_max_urls: int
+    search_chunk: int
+    og_image: str = ""
+
+    @property
+    def now_str(self) -> str:
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def load_config(env: dict[str, str] | None = None) -> Config:
+    env = dict(os.environ if env is None else env)
+    base_dir = Path(env.get("TGLITE_BASE", BASE))
+
+    def _int(name: str, default: int, minimum: int) -> int:
+        raw = env.get(name, str(default)).strip()
+        try:
+            val = int(raw)
+        except ValueError:
+            raise BuildError(f"environment {name}={raw!r} must be an integer") from None
+        if val < minimum:
+            raise BuildError(f"environment {name}={val} must be >= {minimum}")
+        return val
+
+    return Config(
+        data_dir=Path(env.get("TGLITE_DATA", base_dir / "data")),
+        tpl_dir=Path(env.get("TGLITE_TEMPLATES", base_dir / "templates")),
+        static_dir=Path(env.get("TGLITE_STATIC", base_dir / "static")),
+        out_dir=Path(env.get("TGLITE_OUT", base_dir / "dist")),
+        site_name=env.get("SITE_NAME", "TG Nav Directory").strip() or "TG Nav Directory",
+        site_url=env.get("SITE_URL", "https://example.com").strip().rstrip("/"),
+        site_base=env.get("SITE_BASE", "").strip().rstrip("/"),
+        per_page=_int("PER_PAGE", 200, 1),
+        sitemap_max_urls=_int("SITEMAP_MAX_URLS", 45000, 500),
+        search_chunk=_int("SEARCH_CHUNK", 4000, 100),
+        og_image=env.get("SITE_OG_IMAGE", "").strip(),
+    )
+
+
+# ---------------------------------------------------------------- slugs
 
 def slugify(text: str) -> str:
-    """ASCII-safe, readable slug. Falls back to a hash suffix for pure CJK names."""
+    """URL-safe slug: lowercase, whitespace/underscores → hyphens.
+
+    CJK characters are preserved (readable, SEO-useful for Chinese
+    directories); browsers percent-encode them transparently. Names made
+    purely of symbols/emoji fall back to a short hash so a slug always exists.
+    """
     slug = unicodedata.normalize("NFKD", text)
     slug = re.sub(r"[^\w\s-]", "", slug, flags=re.UNICODE).strip().lower()
     slug = re.sub(r"[\s_]+", "-", slug)
     slug = re.sub(r"-+", "-", slug).strip("-")
     if not slug:
-        import hashlib
-
         slug = hashlib.md5(text.encode("utf-8")).hexdigest()[:10]
-    return slug[:64]
+    return slug[:64].strip("-") or hashlib.md5(text.encode("utf-8")).hexdigest()[:10]
 
 
-def load_items() -> list[dict]:
+def unique_slug(base: str, taken: set[str]) -> str:
+    """Deterministic collision resolver: first caller wins, later ones get -2, -3 ..."""
+    if base not in taken:
+        taken.add(base)
+        return base
+    n = 2
+    while f"{base}-{n}" in taken:
+        n += 1
+    slug = f"{base}-{n}"
+    taken.add(slug)
+    return slug
+
+
+# ---------------------------------------------------------------- data loading
+
+def _parse_members(raw: Any, where: str) -> int:
+    if raw is None or raw == "":
+        return 0
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        try:
+            return int(float(raw))
+        except (TypeError, ValueError):
+            raise BuildError(f"{where}: 'members' must be a number, got {raw!r}") from None
+
+
+def _parse_date(raw: Any, where: str) -> str:
+    if raw is None or str(raw).strip() == "":
+        return ""
+    value = str(raw).strip()
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        raise BuildError(
+            f"{where}: 'added' must be an ISO date (YYYY-MM-DD), got {value!r}"
+        ) from None
+    return value
+
+
+def load_items(cfg: Config) -> list[dict]:
+    """Load + validate all JSON data files. Raises BuildError with file/index context."""
     items: list[dict] = []
-    files = sorted(DATA_DIR.glob("*.json"))
+    files = sorted(cfg.data_dir.glob("*.json"))
     if not files:
-        raise SystemExit(
-            f"No data files found in {DATA_DIR}. Add a JSON array of entries first."
+        raise BuildError(
+            f"No data files found in {cfg.data_dir}. "
+            "Add a JSON array of entries (see README 'Data format')."
         )
-    seen_usernames: set[str] = set()
+    seen: dict[str, str] = {}  # username_lower -> username as first seen (display form)
     for path in files:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise BuildError(f"{path.name}: invalid JSON at line {exc.lineno} column {exc.colno}: {exc.msg}") from None
         if not isinstance(raw, list):
-            raise SystemExit(f"{path.name}: top level must be a JSON array")
+            raise BuildError(f"{path.name}: top level must be a JSON array")
         for i, it in enumerate(raw):
-            for field in ("name", "username", "type", "category"):
-                if not it.get(field):
-                    raise SystemExit(f"{path.name}[{i}]: missing required field '{field}'")
+            where = f"{path.name}[{i}]"
+            if not isinstance(it, dict):
+                raise BuildError(f"{where}: entry must be a JSON object")
+            for fname in ("name", "username", "type", "category"):
+                value = it.get(fname)
+                if value is None or str(value).strip() == "":
+                    raise BuildError(f"{where}: missing required field '{fname}'")
             if it["type"] not in VALID_TYPES:
-                raise SystemExit(f"{path.name}[{i}]: type must be one of {sorted(VALID_TYPES)}")
-            uname = str(it["username"]).lstrip("@").strip()
-            if uname in seen_usernames:
-                raise SystemExit(f"{path.name}[{i}]: duplicate username '@{uname}'")
-            seen_usernames.add(uname)
+                raise BuildError(
+                    f"{where}: type must be one of {list(VALID_TYPES)}, got {it['type']!r}"
+                )
+            display_uname = str(it["username"]).strip().lstrip("@")
+            if not USERNAME_RE.match(display_uname):
+                raise BuildError(
+                    f"{where}: invalid Telegram username '@{display_uname}' "
+                    "(allowed: 4-64 letters, digits, underscores)"
+                )
+            key = display_uname.lower()
+            if key in seen:
+                raise BuildError(
+                    f"{where}: duplicate username '@{display_uname}' "
+                    f"(case-insensitive match with '@{seen[key]}')"
+                )
+            seen[key] = display_uname
+            tags = it.get("tags") or []
+            if not isinstance(tags, list):
+                raise BuildError(f"{where}: 'tags' must be an array of strings")
             items.append(
                 {
                     "name": str(it["name"]).strip(),
-                    "username": uname,
+                    "username": display_uname,       # original display form
+                    "username_lower": key,           # dedupe/search key
                     "type": it["type"],
                     "category": str(it["category"]).strip(),
-                    "description": str(it.get("description", "")).strip(),
-                    "members": int(it.get("members", 0) or 0),
-                    "tags": [str(t).strip() for t in it.get("tags", []) if str(t).strip()],
-                    "added": str(it.get("added", "")).strip(),
+                    "description": str(it.get("description") or "").strip(),
+                    "members": _parse_members(it.get("members"), where),
+                    "tags": [str(t).strip() for t in tags if str(t).strip()],
+                    "added": _parse_date(it.get("added"), where),
                 }
             )
-    items.sort(key=lambda x: (x["added"] or "", x["name"]), reverse=True)
+    # deterministic order: newest first, then name A→Z (stable two-pass)
+    items.sort(key=lambda x: x["name"].lower())
+    items.sort(key=lambda x: x["added"], reverse=True)
+    if not items:
+        raise BuildError(
+            f"Data files in {cfg.data_dir} contain no entries. "
+            "Add a JSON array of entries (see README 'Data format')."
+        )
     return items
 
 
@@ -96,93 +222,284 @@ def group_by_category(items: list[dict]) -> dict[str, list[dict]]:
     cats: dict[str, list[dict]] = {}
     for it in items:
         cats.setdefault(it["category"], []).append(it)
-    # stable, readable order: most items first
-    return dict(sorted(cats.items(), key=lambda kv: -len(kv[1])))
+    return dict(sorted(cats.items(), key=lambda kv: (-len(kv[1]), kv[0])))
 
 
-def write(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(content, encoding="utf-8", newline="\n")
-    tmp.replace(path)  # atomic-ish write
+def assign_category_slugs(cats: dict[str, list[dict]]) -> dict[str, str]:
+    """category display name -> unique slug. Deterministic, collision-safe."""
+    taken: set[str] = set()
+    out: dict[str, str] = {}
+    for name in sorted(cats.keys()):
+        out[name] = unique_slug(slugify(name), taken)
+    return out
 
 
-def main() -> None:
-    items = load_items()
-    cats = group_by_category(items)
-    cat_names = list(cats.keys())
-    cat_slugs = {name: slugify(name) for name in cat_names}
-    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+def assign_detail_slugs(items: list[dict]) -> None:
+    """Stable per-entry slug derived from the username (unique by data validation).
 
-    if OUT.exists():
-        try:
-            shutil.rmtree(OUT)
-        except OSError:
-            # fallback: some sandboxed Python builds hijack rmtree/rmdir;
-            # remove files one by one and ignore individual failures
-            for root, dirs, files in os.walk(OUT, topdown=False):
-                for f in files:
-                    try:
-                        os.unlink(os.path.join(root, f))
-                    except OSError:
-                        pass
-                for d in dirs:
-                    try:
-                        os.rmdir(os.path.join(root, d))
-                    except OSError:
-                        pass
-            try:
-                OUT.rmdir()
-            except OSError:
-                pass
-    if not OUT.exists():
-        OUT.mkdir(parents=True)
+    Telegram usernames are case-insensitive and unique platform-wide, so the URL
+    of a page never changes when new entries are added. The suffix disambiguator
+    only triggers when two *different* usernames collapse to the same ASCII slug
+    (e.g. "abc_1" vs "abc-1"); it is assigned in username order so the result is
+    reproducible across builds.
+    """
+    by_type: dict[str, list[dict]] = {"group": [], "channel": []}
+    for it in items:
+        by_type[it["type"]].append(it)
+    for entries in by_type.values():
+        taken: set[str] = set()
+        for it in sorted(entries, key=lambda x: x["username_lower"]):
+            it["slug"] = unique_slug(slugify(it["username"]), taken)
 
+
+# ---------------------------------------------------------------- env/template
+
+def make_env(cfg: Config, cat_slugs: dict[str, str], now_str: str) -> Environment:
     env = Environment(
-        loader=FileSystemLoader(str(TPL_DIR)),
+        loader=FileSystemLoader(str(cfg.tpl_dir)),
         autoescape=select_autoescape(["html"]),
         trim_blocks=True,
         lstrip_blocks=True,
     )
     env.filters["fmt_members"] = lambda n: f"{n:,}" if n else ""
     env.globals.update(
-        SITE_NAME=SITE_NAME,
-        SITE_URL=SITE_URL,
-        SITE_BASE=SITE_BASE,
-        NOW=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        SITE_NAME=cfg.site_name,
+        SITE_URL=cfg.site_url,
+        SITE_BASE=cfg.site_base,
+        OG_IMAGE=cfg.og_image,
+        NOW=now_str,
         cat_slugs=cat_slugs,
     )
+    return env
 
-    stats = {"pages": 0}
+
+# ---------------------------------------------------------------- file writing
+
+def remove_tree(path: Path) -> None:
+    """Delete a directory tree; best-effort under sandboxed/locked environments.
+
+    Never raises: if deletion is refused (sandbox policy, file locks), the
+    caller proceeds and stale directories are cleaned up on a later build.
+    """
+    if not path.exists():
+        return
+    try:
+        shutil.rmtree(path)
+        return
+    except Exception:
+        pass
+    for root, dirs, files in os.walk(path, topdown=False):
+        for f in files:
+            try:
+                os.unlink(os.path.join(root, f))
+            except Exception:
+                pass
+        for d in dirs:
+            try:
+                os.rmdir(os.path.join(root, d))
+            except Exception:
+                pass
+    try:
+        path.rmdir()
+    except Exception:
+        pass
+
+
+def write(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8", newline="\n")
+
+
+# ---------------------------------------------------------------- sitemap
+
+def _sitemap_url_xml(loc: str, lastmod: str) -> str:
+    return (
+        "  <url>"
+        f"<loc>{xml_escape.escape(loc)}</loc>"
+        f"<lastmod>{xml_escape.escape(lastmod)}</lastmod>"
+        "</url>"
+    )
+
+
+def write_sitemaps(cfg: Config, out: Path, urls: list[tuple[str, str]]) -> None:
+    """Write sitemap (index + shards when large). urls = [(loc, lastmod), ...]."""
+    header = '<?xml version="1.0" encoding="UTF-8"?>'
+    if len(urls) <= cfg.sitemap_max_urls:
+        lines = [header, '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+        lines += [_sitemap_url_xml(loc, lm) for loc, lm in urls]
+        lines.append("</urlset>")
+        write(out / "sitemap.xml", "\n".join(lines))
+        return
+    shards: list[str] = []
+    for i in range(0, len(urls), cfg.sitemap_max_urls):
+        n = i // cfg.sitemap_max_urls + 1
+        fname = f"sitemap-{n}.xml"
+        lines = [header, '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+        lines += [_sitemap_url_xml(loc, lm) for loc, lm in urls[i : i + cfg.sitemap_max_urls]]
+        lines.append("</urlset>")
+        write(out / fname, "\n".join(lines))
+        shards.append(fname)
+    index = [
+        header,
+        '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ]
+    index += [
+        f"  <sitemap><loc>{xml_escape.escape(cfg.site_url)}/{xml_escape.escape(f)}</loc>"
+        f"<lastmod>{xml_escape.escape(cfg.now_str)}</lastmod></sitemap>"
+        for f in shards
+    ]
+    index.append("</sitemapindex>")
+    write(out / "sitemap.xml", "\n".join(index))
+
+
+# ---------------------------------------------------------------- search index
+
+def write_search_index(cfg: Config, out: Path, items: list[dict]) -> int:
+    """Static, chunked search index (no backend). Returns entry count."""
+    if not items:
+        return 0
+    search_dir = out / "search"
+    search_dir.mkdir(parents=True, exist_ok=True)
+    chunk_files: list[str] = []
+    total = 0
+    for i in range(0, len(items), cfg.search_chunk):
+        chunk = items[i : i + cfg.search_chunk]
+        fname = f"search-{i // cfg.search_chunk + 1}.json"
+        rows = [
+            [
+                it["name"],
+                it["username"],
+                it["type"],
+                it["category"],
+                it["description"][:140],
+                "|".join(it["tags"][:8]),
+                f"{it['type']}/{it['slug']}.html",
+            ]
+            for it in chunk
+        ]
+        write(search_dir / fname, json.dumps(rows, ensure_ascii=False, separators=(",", ":")))
+        chunk_files.append(fname)
+        total += len(rows)
+    write(
+        search_dir / "index.json",
+        json.dumps({"chunks": chunk_files, "count": total}, separators=(",", ":")),
+    )
+    return total
+
+
+# ---------------------------------------------------------------- link check
+
+_HREF_RE = re.compile(r'(?:href|src)="([^"]+)"')
+
+
+def check_internal_links(cfg: Config, out: Path) -> list[str]:
+    """Verify every internal href/src resolves to a generated file. Returns problems."""
+    problems: list[str] = []
+    for html in out.rglob("*.html"):
+        rel_dir = html.parent.relative_to(out)
+        for ref in _HREF_RE.findall(html.read_text(encoding="utf-8")):
+            if ref.startswith(("#", "mailto:", "tel:", "data:")):
+                continue
+            path_part = None
+            if ref.startswith(cfg.site_url + "/"):
+                path_part = ref[len(cfg.site_url) + 1 :]
+            elif cfg.site_base and ref.startswith(cfg.site_base + "/"):
+                path_part = ref[len(cfg.site_base) + 1 :]
+            elif not re.match(r"^[a-z][a-z0-9+.-]*:", ref) and not ref.startswith("//"):
+                # site-relative like /static/style.css or page.html
+                if ref.startswith("/") and not cfg.site_base:
+                    path_part = ref.lstrip("/")
+                elif not ref.startswith("/"):
+                    path_part = str((rel_dir / ref).as_posix())
+                elif cfg.site_base and ref.startswith("/"):
+                    problems.append(f"{html.relative_to(out)}: root-relative link '{ref}' "
+                                    "without SITE_BASE prefix")
+                    continue
+            if path_part is None:
+                continue  # external link
+            path_part = path_part.split("#", 1)[0].split("?", 1)[0]
+            if path_part == "":
+                target = out / "index.html"
+            else:
+                target = out / path_part
+            if not target.exists():
+                problems.append(
+                    f"{html.relative_to(out)}: broken internal link '{ref}'"
+                )
+    return problems
+
+
+# ---------------------------------------------------------------- build
+
+def build(cfg: Config) -> dict[str, Any]:
+    """Full build into a staging dir, then atomic swap into out_dir.
+
+    Raises BuildError on invalid input; the existing out_dir is never touched
+    on failure.
+    """
+    items = load_items(cfg)
+    cats = group_by_category(items)
+    cat_slugs = assign_category_slugs(cats)
+    cat_names = list(cats.keys())
+    assign_detail_slugs(items)
+    now_str = cfg.now_str
+
+    env = make_env(cfg, cat_slugs, now_str)
+
+    # staging directory: never touch the live output until success
+    staging = cfg.out_dir.with_name(cfg.out_dir.name + "-staging")
+    remove_tree(staging)
+    staging.mkdir(parents=True)
+
+    # absolute URLs for each entry
+    for it in items:
+        it["url"] = f"{cfg.site_url}/{it['type']}/{it['slug']}.html"
+
+    # precompute related entries per category in one pass (no per-page rescan)
+    for citems in cats.values():
+        n = len(citems)
+        for i, it in enumerate(citems):
+            forward = citems[i + 1 : i + 9]
+            deficit = 8 - len(forward)
+            backward = citems[max(0, i - deficit) : i] if deficit > 0 else []
+            it["related"] = (forward + backward)[:8]
+
+    stats: dict[str, Any] = {"entries": len(items), "categories": len(cats), "pages": 0}
+
+    tpl_detail = env.get_template("detail.html")
+    tpl_category = env.get_template("category.html")
 
     # ---------- detail pages ----------
-    used_slugs: set[str] = set()
     for it in items:
-        base = slugify(it["name"])
-        slug, n = base, 2
-        while slug in used_slugs:
-            slug = f"{base}-{n}"
-            n += 1
-        used_slugs.add(slug)
-        it["slug"] = slug
-    for it in items:
-        url = f"{SITE_URL}/{it['type']}/{it['slug']}.html"
-        it["url"] = url
-        related = [x for x in cats[it["category"]] if x["username"] != it["username"]][:8]
+        ld = {
+            "@context": "https://schema.org",
+            "@type": "WebPage",
+            "name": it["name"],
+            "description": it["description"][:155],
+            "url": it["url"],
+            "mainEntity": {
+                "@type": "Thing",
+                "name": it["name"],
+                "sameAs": f"https://t.me/{it['username']}",
+            },
+        }
         ctx = {
             "item": it,
-            "related": related,
+            "related": it.get("related", []),
             "cat_names": cat_names,
+            "cat_slug": cat_slugs[it["category"]],
+            "ld": ld,
             "page_type": "detail",
         }
-        write(OUT / it["type"] / f"{it['slug']}.html", env.get_template("detail.html").render(**ctx))
+        write(staging / it["type"] / f"{it['slug']}.html", tpl_detail.render(**ctx))
         stats["pages"] += 1
 
     # ---------- category pages ----------
     cat_meta = []
     for cname, citems in cats.items():
-        cslug = slugify(cname)
-        chunks = [citems[i : i + PER_PAGE] for i in range(0, len(citems), PER_PAGE)]
+        cslug = cat_slugs[cname]
+        chunks = [citems[i : i + cfg.per_page] for i in range(0, len(citems), cfg.per_page)]
+        cat_lastmod = max((x["added"] for x in citems if x["added"]), default=now_str)
         for idx, chunk in enumerate(chunks, start=1):
             fname = f"{cslug}.html" if idx == 1 else f"{cslug}-{idx}.html"
             ctx = {
@@ -194,21 +511,22 @@ def main() -> None:
                 "cat_names": cat_names,
                 "page_type": "category",
             }
-            write(OUT / "category" / fname, env.get_template("category.html").render(**ctx))
+            write(staging / "category" / fname, tpl_category.render(**ctx))
             stats["pages"] += 1
         cat_meta.append(
             {
                 "name": cname,
                 "slug": cslug,
                 "count": len(citems),
-                "url": f"{SITE_URL}/category/{cslug}.html",
+                "url": f"{cfg.site_url}/category/{cslug}.html",
+                "lastmod": cat_lastmod,
             }
         )
 
     # ---------- homepage ----------
     featured = items[:24]
     write(
-        OUT / "index.html",
+        staging / "index.html",
         env.get_template("index.html").render(
             items=featured,
             cat_meta=cat_meta,
@@ -219,24 +537,76 @@ def main() -> None:
     )
     stats["pages"] += 1
 
+    # ---------- 404 + search pages ----------
+    write(staging / "404.html", env.get_template("404.html").render(cat_names=cat_names, page_type="404"))
+    stats["pages"] += 1
+    if items:
+        write(staging / "search.html", env.get_template("search.html").render(cat_names=cat_names, page_type="search"))
+        stats["pages"] += 1
+
     # ---------- sitemap + robots ----------
-    urls = [f"{SITE_URL}/"] + [c["url"] for c in cat_meta] + [it["url"] for it in items]
-    sitemap = [
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-    ]
-    for u in urls:
-        sitemap.append(f"  <url><loc>{u}</loc><lastmod>{now_str}</lastmod></url>")
-    sitemap.append("</urlset>")
-    write(OUT / "sitemap.xml", "\n".join(sitemap))
-    write(OUT / "robots.txt", f"User-agent: *\nAllow: /\nSitemap: {SITE_URL}/sitemap.xml\n")
+    urls: list[tuple[str, str]] = [(cfg.site_url + "/", now_str)]
+    urls += [(c["url"], c["lastmod"]) for c in cat_meta]
+    # category pagination pages
+    for cname, citems in cats.items():
+        cslug = cat_slugs[cname]
+        total_pages = max(1, -(-len(citems) // cfg.per_page))
+        cat_lastmod = max((x["added"] for x in citems if x["added"]), default=now_str)
+        for p in range(2, total_pages + 1):
+            urls.append((f"{cfg.site_url}/category/{cslug}-{p}.html", cat_lastmod))
+    urls += [(it["url"], it["added"] or now_str) for it in items]
+    write_sitemaps(cfg, staging, urls)
+    write(
+        staging / "robots.txt",
+        f"User-agent: *\nAllow: /\nSitemap: {cfg.site_url}/sitemap.xml\n",
+    )
+
+    # ---------- search index ----------
+    stats["search_indexed"] = write_search_index(cfg, staging, items)
 
     # ---------- static assets ----------
-    if STATIC_DIR.exists():
-        shutil.copytree(STATIC_DIR, OUT / "static", dirs_exist_ok=True)
+    if cfg.static_dir.exists():
+        shutil.copytree(cfg.static_dir, staging / "static", dirs_exist_ok=True)
 
-    print(f"tgnav-lite: {len(items)} entries, {len(cat_meta)} categories, "
-          f"{stats['pages']} pages -> {OUT}")
+    # ---------- integrity checks before going live ----------
+    problems = check_internal_links(cfg, staging)
+    if problems:
+        preview = "\n".join(problems[:20])
+        raise BuildError(
+            f"internal link check failed ({len(problems)} broken):\n{preview}"
+        )
+    if not (staging / "index.html").exists():
+        raise BuildError("build produced no index.html")
+
+    # ---------- atomic swap ----------
+    old = cfg.out_dir.with_name(cfg.out_dir.name + "-old")
+    remove_tree(old)
+    if cfg.out_dir.exists():
+        try:
+            cfg.out_dir.rename(old)
+        except OSError:
+            remove_tree(cfg.out_dir)
+    try:
+        staging.rename(cfg.out_dir)
+    except OSError:
+        # fallback: copy contents (cross-device or sandboxed rename)
+        shutil.copytree(staging, cfg.out_dir, dirs_exist_ok=True)
+        remove_tree(staging)
+    remove_tree(old)
+
+    return stats
+
+
+def main() -> None:
+    cfg = load_config()
+    try:
+        stats = build(cfg)
+    except BuildError as exc:
+        raise SystemExit(f"tgnav-lite: ERROR: {exc}") from None
+    print(
+        f"tgnav-lite: {stats['entries']} entries, {stats['categories']} categories, "
+        f"{stats['pages']} pages, search index {stats['search_indexed']} -> {cfg.out_dir}"
+    )
 
 
 if __name__ == "__main__":

@@ -1,11 +1,20 @@
 {% extends "base.html" %}
-{% block title %}{{ category }} Telegram {{ 'Channels' if items[0].type == 'channel' else 'Groups' }} — {{ SITE_NAME }}{% endblock %}
-{% block description %}Browse {{ items | length }} {{ category }} Telegram {{ 'channels' if items[0].type == 'channel' else 'groups' }}. Each entry includes a description and a direct link.{% endblock %}
-{% block canonical %}{{ SITE_URL }}/category/{{ cslug }}.html{% endblock %}
+{% block title %}{{ category }} Telegram {{ 'Channels' if items[0].type == 'channel' else 'Groups' }}{% if total_pages > 1 %} — Page {{ page_no }}{% endif %} — {{ SITE_NAME }}{% endblock %}
+{% block description %}Browse {{ items | length }} {{ category }} Telegram {{ 'channels' if items[0].type == 'channel' else 'groups' }}{% if total_pages > 1 %} (page {{ page_no }} of {{ total_pages }}){% endif %}. Each entry includes a description and a direct link.{% endblock %}
+{% block canonical %}{{ SITE_URL }}/category/{{ cslug }}{% if page_no > 1 %}-{{ page_no }}{% endif %}.html{% endblock %}
+
+{% block head %}
+  {{ super() }}
+  {% if page_no > 1 %}<link rel="prev" href="{{ SITE_URL }}/category/{{ cslug }}{% if page_no > 2 %}-{{ page_no - 1 }}{% endif %}.html">{% endif %}
+  {% if page_no < total_pages %}<link rel="next" href="{{ SITE_URL }}/category/{{ cslug }}-{{ page_no + 1 }}.html">{% endif %}
+{% endblock %}
 
 {% block body %}
+<nav class="crumbs" aria-label="Breadcrumb">
+  <a href="{{ SITE_URL }}/">Home</a> › <span aria-current="page">{{ category }}</span>
+</nav>
 <h1>{{ category }}</h1>
-<p class="sub">{{ items | length }} entries</p>
+<p class="sub">{{ items | length }} entries{% if total_pages > 1 %} · page {{ page_no }} of {{ total_pages }}{% endif %}</p>
 
 <div class="list">
   {% for it in items %}
@@ -21,12 +30,14 @@
 </div>
 
 {% if total_pages > 1 %}
-<nav class="pager">
+<nav class="pager" aria-label="Pagination">
+  {% if page_no > 1 %}<a href="{{ SITE_URL }}/category/{{ cslug }}{% if page_no > 2 %}-{{ page_no - 1 }}{% endif %}.html">‹ Prev</a>{% endif %}
   {% for p in range(1, total_pages + 1) %}
-    {% if p == page_no %}<span class="cur">{{ p }}</span>
+    {% if p == page_no %}<span class="cur" aria-current="page">{{ p }}</span>
     {% elif p == 1 %}<a href="{{ SITE_URL }}/category/{{ cslug }}.html">{{ p }}</a>
     {% else %}<a href="{{ SITE_URL }}/category/{{ cslug }}-{{ p }}.html">{{ p }}</a>{% endif %}
   {% endfor %}
+  {% if page_no < total_pages %}<a href="{{ SITE_URL }}/category/{{ cslug }}-{{ page_no + 1 }}.html">Next ›</a>{% endif %}
 </nav>
 {% endif %}
 {% endblock %}

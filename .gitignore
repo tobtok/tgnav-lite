@@ -1,5 +1,9 @@
-__pycache__/
-dist/
 *.pyc
-.env
 .DS_Store
+.bench/
+.bench2/
+.bench3/
+.env
+__pycache__/
+_bench_out.txt
+dist/

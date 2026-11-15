@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest an idea for tgnav-lite
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What can directory-site operators not do today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Keep the project's constraints in mind — static-first, one runtime dependency, no URL breakage.
+    validations:
+      required: true
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Compatibility checklist
+      options:
+        - label: This can be implemented without changing existing generated URLs
+        - label: This does not require a database or backend
+        - label: This does not add heavyweight frontend dependencies

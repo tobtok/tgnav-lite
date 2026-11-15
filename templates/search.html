@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Search — {{ SITE_NAME }}{% endblock %}
+{% block description %}Search {{ SITE_NAME }} by name, username, description or tags. Filter groups and channels.{% endblock %}
+{% block canonical %}{{ SITE_URL }}/search.html{% endblock %}
+
+{% block body %}
+<section class="hero">
+  <h1><span class="hero-title">Search</span> the directory</h1>
+  <p class="sub">Find groups and channels by name, username, description or tags.</p>
+</section>
+
+<div class="search-panel">
+  <input id="search-input" type="search" placeholder="e.g. tech, movies, bitcoin…"
+         autocomplete="off" autofocus aria-label="Search query">
+  <div class="search-filters" role="group" aria-label="Filter by type">
+    <button class="filter-btn active" data-type="all" aria-pressed="true">All</button>
+    <button class="filter-btn" data-type="group" aria-pressed="false">Groups</button>
+    <button class="filter-btn" data-type="channel" aria-pressed="false">Channels</button>
+  </div>
+  <p id="search-status" class="sub" role="status"></p>
+  <div id="search-results" class="list"></div>
+</div>
+
+<script>window.TGLITE = { siteBase: "{{ SITE_BASE }}", searchBase: "{{ SITE_BASE }}/search" };</script>
+<script src="{{ SITE_BASE }}/static/search.js" defer></script>
+{% endblock %}

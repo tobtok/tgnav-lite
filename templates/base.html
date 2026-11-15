@@ -7,25 +7,38 @@
   <title>{% block title %}{{ SITE_NAME }}{% endblock %}</title>
   <meta name="description" content="{% block description %}A curated directory of Telegram groups and channels.{% endblock %}">
   <link rel="canonical" href="{% block canonical %}{{ SITE_URL }}/{% endblock %}">
+  <meta property="og:site_name" content="{{ SITE_NAME }}">
+  <meta property="og:title" content="{% block og_title %}{{ SITE_NAME }}{% endblock %}">
+  <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+  <meta property="og:url" content="{{ self.canonical() }}">
+  <meta property="og:description" content="{{ self.description() }}">
+  {% if OG_IMAGE %}<meta property="og:image" content="{{ OG_IMAGE }}">{% endif %}
   {% endblock %}
+  <link rel="icon" type="image/svg+xml" href="{{ SITE_BASE }}/static/favicon.svg">
   <link rel="stylesheet" href="{{ SITE_BASE }}/static/style.css">
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header">
-    <a class="brand" href="{{ SITE_URL }}/">{{ SITE_NAME }}</a>
-    <nav class="cat-nav">
-      {% for c, cs in cat_slugs.items() %}
-      <a href="{{ SITE_URL }}/category/{{ cs }}.html">{{ c }}</a>
-      {% endfor %}
-    </nav>
+    <div class="wrap">
+      <a class="brand" href="{{ SITE_URL }}/">{{ SITE_NAME }}</a>
+      <form class="search-mini" action="{{ SITE_URL }}/search.html" method="get" role="search">
+        <input type="search" name="q" placeholder="Search groups…" aria-label="Search groups and channels">
+      </form>
+      <nav class="cat-nav" aria-label="Categories">
+        {% for c, cs in cat_slugs.items() %}
+        <a href="{{ SITE_URL }}/category/{{ cs }}.html">{{ c }}</a>
+        {% endfor %}
+      </nav>
+    </div>
   </header>
-  <main class="wrap">
+  <main class="wrap" id="main">
     {% block body %}{% endblock %}
   </main>
   <footer class="site-footer">
     <p>{{ SITE_NAME }} is an independent index of public Telegram resources.
        We host no content — every link points to a public Telegram page.</p>
-    <p>Updated {{ NOW }} · Built with <a href="https://github.com/">tgnav-lite</a></p>
+    <p>Updated {{ NOW }} · Built with <a href="https://github.com/tobtok/tgnav-lite">tgnav-lite</a></p>
   </footer>
 </body>
 </html>

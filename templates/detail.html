@@ -2,26 +2,21 @@
 {% block title %}{{ item.name }} — Telegram {{ 'Channel' if item.type == 'channel' else 'Group' }} | {{ SITE_NAME }}{% endblock %}
 {% block description %}{{ item.description | default('Telegram ' ~ item.type ~ ' ' ~ item.name, true) | truncate(155) }}{% endblock %}
 {% block canonical %}{{ item.url }}{% endblock %}
+{% block og_type %}profile{% endblock %}
 
 {% block head %}
   {{ super() }}
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "ItemList",
-    "name": "{{ item.name }}",
-    "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1,
-      "name": "{{ item.name }}",
-      "url": "{{ item.url }}"
-    }]
-  }
-  </script>
+  <script type="application/ld+json">{{ ld | tojson }}</script>
 {% endblock %}
 
 {% block body %}
 <article class="detail">
+  <nav class="crumbs" aria-label="Breadcrumb">
+    <a href="{{ SITE_URL }}/">Home</a> ›
+    <a href="{{ SITE_URL }}/category/{{ cat_slug }}.html">{{ item.category }}</a> ›
+    <span aria-current="page">{{ item.name }}</span>
+  </nav>
+
   <header>
     <span class="avatar">{{ item.name[0] }}</span>
     <h1>{{ item.name }}</h1>
