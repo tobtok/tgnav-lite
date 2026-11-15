@@ -73,7 +73,8 @@ Put one or more JSON files in `data/`. Each file is an array of entries:
   item plus the full item list to every page.
 - **Styles** are a single file, `static/style.css`. Light, responsive, no framework.
 - **Site name, base URL and page size** are configured at the top of `generator/build.py`
-  or via environment variables (`SITE_NAME`, `SITE_URL`, `PER_PAGE`).
+  or via environment variables (`SITE_NAME`, `SITE_URL`, `SITE_BASE`, `PER_PAGE`).
+  Set `SITE_BASE=/your-repo` when hosting under a sub-path (GitHub Pages project sites).
 
 ## Design principles
 

@@ -23,7 +23,11 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install jinja2
-      - run: python generator/build.py
+      - run: >
+          python generator/build.py
+        env:
+          SITE_URL: https://tobtok.github.io/tgnav-lite
+          SITE_BASE: /tgnav-lite
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

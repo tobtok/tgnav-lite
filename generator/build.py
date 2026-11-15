@@ -33,6 +33,9 @@ OUT = BASE / "dist"
 
 SITE_NAME = os.environ.get("SITE_NAME", "TG Nav Directory")
 SITE_URL = os.environ.get("SITE_URL", "https://example.com").rstrip("/")
+# URL path prefix when the site is hosted under a sub-path
+# (e.g. GitHub Pages project sites: /<repo>). Default "" = domain root.
+SITE_BASE = os.environ.get("SITE_BASE", "").rstrip("/")
 PER_PAGE = int(os.environ.get("PER_PAGE", "200"))
 
 VALID_TYPES = {"group", "channel"}
@@ -115,15 +118,25 @@ def main() -> None:
         try:
             shutil.rmtree(OUT)
         except OSError:
-            # fallback: some sandboxed Python builds hijack rmtree;
-            # remove files one by one instead
+            # fallback: some sandboxed Python builds hijack rmtree/rmdir;
+            # remove files one by one and ignore individual failures
             for root, dirs, files in os.walk(OUT, topdown=False):
                 for f in files:
-                    os.unlink(os.path.join(root, f))
+                    try:
+                        os.unlink(os.path.join(root, f))
+                    except OSError:
+                        pass
                 for d in dirs:
-                    os.rmdir(os.path.join(root, d))
-            OUT.rmdir()
-    OUT.mkdir(parents=True)
+                    try:
+                        os.rmdir(os.path.join(root, d))
+                    except OSError:
+                        pass
+            try:
+                OUT.rmdir()
+            except OSError:
+                pass
+    if not OUT.exists():
+        OUT.mkdir(parents=True)
 
     env = Environment(
         loader=FileSystemLoader(str(TPL_DIR)),
@@ -135,6 +148,7 @@ def main() -> None:
     env.globals.update(
         SITE_NAME=SITE_NAME,
         SITE_URL=SITE_URL,
+        SITE_BASE=SITE_BASE,
         NOW=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         cat_slugs=cat_slugs,
     )
