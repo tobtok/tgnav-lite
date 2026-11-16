@@ -268,6 +268,7 @@ h2 {
 }
 
 .cat-card {
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -285,7 +286,13 @@ h2 {
   border-color: var(--accent);
 }
 
-.cat-name { font-weight: 600; font-size: 14.5px; }
+.cat-name {
+  font-weight: 600;
+  font-size: 14.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .cat-count {
   font-size: 12.5px;
@@ -300,11 +307,15 @@ h2 {
 
 .list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  /* min(300px, 100%) keeps the track from overflowing narrow containers */
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
   gap: 14px;
 }
 
 .row {
+  /* grid items default to min-width:auto; a nowrap title inside would
+     blow the track past the container — allow shrinking instead */
+  min-width: 0;
   display: flex;
   gap: 14px;
   align-items: flex-start;
