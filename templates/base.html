@@ -38,7 +38,7 @@
   <footer class="site-footer">
     <p>{{ SITE_NAME }} is an independent index of public Telegram resources.
        We host no content — every link points to a public Telegram page.</p>
-    <p>Updated {{ NOW }} · Built with <a href="https://github.com/tobtok/tgnav-lite">tgnav-lite</a></p>
+    <p>Updated {{ NOW }} · Built with <a href="https://github.com/tobtok/tgnav-lite" rel="noopener">tgnav-lite</a>{% if FOOTER_LINK_URL %} · Live deployment: <a href="{{ FOOTER_LINK_URL }}" rel="noopener">{{ FOOTER_LINK_TEXT }}</a>{% endif %}</p>
   </footer>
 </body>
 </html>

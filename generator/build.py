@@ -56,6 +56,10 @@ class Config:
     sitemap_max_urls: int
     search_chunk: int
     og_image: str = ""
+    # Optional attribution link rendered in the footer (e.g. a live
+    # production deployment of this generator). Empty = no extra link.
+    footer_link_url: str = ""
+    footer_link_text: str = ""
 
     @property
     def now_str(self) -> str:
@@ -76,7 +80,7 @@ def load_config(env: dict[str, str] | None = None) -> Config:
             raise BuildError(f"environment {name}={val} must be >= {minimum}")
         return val
 
-    return Config(
+    cfg = Config(
         data_dir=Path(env.get("TGLITE_DATA", base_dir / "data")),
         tpl_dir=Path(env.get("TGLITE_TEMPLATES", base_dir / "templates")),
         static_dir=Path(env.get("TGLITE_STATIC", base_dir / "static")),
@@ -88,7 +92,19 @@ def load_config(env: dict[str, str] | None = None) -> Config:
         sitemap_max_urls=_int("SITEMAP_MAX_URLS", 45000, 500),
         search_chunk=_int("SEARCH_CHUNK", 4000, 100),
         og_image=env.get("SITE_OG_IMAGE", "").strip(),
+        footer_link_url=env.get("FOOTER_LINK_URL", "").strip(),
+        footer_link_text=env.get("FOOTER_LINK_TEXT", "").strip(),
     )
+    if cfg.footer_link_url:
+        if not cfg.footer_link_url.startswith(("http://", "https://")):
+            raise BuildError(
+                f"environment FOOTER_LINK_URL={cfg.footer_link_url!r} "
+                "must start with http:// or https://"
+            )
+        cfg.footer_link_url = cfg.footer_link_url.rstrip("/")
+        if not cfg.footer_link_text:
+            cfg.footer_link_text = cfg.footer_link_url
+    return cfg
 
 
 # ---------------------------------------------------------------- slugs
@@ -267,6 +283,8 @@ def make_env(cfg: Config, cat_slugs: dict[str, str], now_str: str) -> Environmen
         SITE_URL=cfg.site_url,
         SITE_BASE=cfg.site_base,
         OG_IMAGE=cfg.og_image,
+        FOOTER_LINK_URL=cfg.footer_link_url.rstrip("/") if cfg.footer_link_url else "",
+        FOOTER_LINK_TEXT=cfg.footer_link_text or cfg.footer_link_url,
         NOW=now_str,
         cat_slugs=cat_slugs,
     )

@@ -28,6 +28,8 @@ jobs:
         env:
           SITE_URL: https://tobtok.github.io/tgnav-lite
           SITE_BASE: /tgnav-lite
+          FOOTER_LINK_URL: https://navsou.com/
+          FOOTER_LINK_TEXT: navsou.com
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

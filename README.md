@@ -12,7 +12,8 @@ No database, no server-side code — the output is pure HTML you can host anywhe
 **[https://tobtok.github.io/tgnav-lite/](https://tobtok.github.io/tgnav-lite/)**
 (auto-rebuilt on every push via GitHub Actions — see `.github/workflows/deploy-pages.yml`).
 
-Used in production by the author's own Telegram directory site.
+Used in production by [navsou.com](https://navsou.com/) — the author's live
+Telegram directory, rebuilt every 15 minutes from its own data pipeline.
 
 ## Features
 
@@ -99,6 +100,8 @@ when you call `build()` programmatically):
 | `SITEMAP_MAX_URLS` | `45000`                | Split into a sitemap index above this          |
 | `SEARCH_CHUNK`     | `4000`                 | Entries per search-index chunk                 |
 | `SITE_OG_IMAGE`    | *(empty)*              | Absolute OpenGraph image URL                   |
+| `FOOTER_LINK_URL`  | *(empty)*              | Optional footer attribution link (e.g. your live deployment); empty = hidden |
+| `FOOTER_LINK_TEXT` | *(= URL)*              | Anchor text for the footer link                |
 
 `SITE_BASE` is required for GitHub Pages project sites
 (`https://user.github.io/repo/` → `SITE_BASE=/repo`, `SITE_URL=https://user.github.io/repo`).

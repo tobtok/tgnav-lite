@@ -65,6 +65,31 @@ def test_config_bad_per_page():
         load_config(env={"PER_PAGE": "zero", "TGLITE_BASE": "/tmp"})
 
 
+def test_footer_link_hidden_by_default(tmp_path, sample_entries):
+    cfg = make_config(tmp_path, sample_entries)
+    build(cfg)
+    idx = (cfg.out_dir / "index.html").read_text(encoding="utf-8")
+    assert "Live deployment" not in idx
+
+
+def test_footer_link_rendered_when_configured(tmp_path, sample_entries):
+    cfg = make_config(
+        tmp_path,
+        sample_entries,
+        footer_link_url="https://navsou.com/",
+        footer_link_text="navsou.com",
+    )
+    build(cfg)
+    idx = (cfg.out_dir / "index.html").read_text(encoding="utf-8")
+    assert 'Live deployment: <a href="https://navsou.com"' in idx
+    assert ">navsou.com</a>" in idx
+
+
+def test_footer_link_requires_absolute_url():
+    with pytest.raises(BuildError, match="FOOTER_LINK_URL"):
+        load_config(env={"TGLITE_BASE": "/tmp", "FOOTER_LINK_URL": "navsou.com"})
+
+
 def test_config_bad_per_page_negative():
     with pytest.raises(BuildError, match="PER_PAGE"):
         load_config(env={"PER_PAGE": "-5", "TGLITE_BASE": "/tmp"})
